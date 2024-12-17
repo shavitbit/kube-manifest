@@ -1,0 +1,30 @@
+# Use the official Python image as the base
+FROM python:3.11-slim
+
+# Set environment variables to avoid buffering and ensure consistent behavior
+ENV PYTHONUNBUFFERED=1
+
+# Set the working directory inside the container
+WORKDIR /app
+
+# Create a non-root user and group
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+
+# Copy the application files into the container
+COPY . /app
+
+# Give ownership of the /app folder to the non-root user
+RUN chown -R appuser:appgroup /app
+
+# Give execute permissions to the non-root user for all files in /app
+RUN chmod -R 755 /app
+
+# Switch to the non-root user
+USER appuser
+
+# Install any required Python dependencies
+COPY requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Default command to run the application
+CMD ["python", "app.py"]

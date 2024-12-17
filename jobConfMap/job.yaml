@@ -1,0 +1,56 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: myjob
+spec:
+  ttlSecondsAfterFinished: 100
+  template:
+    spec:
+      containers:
+      - name: my-python-check
+        image: python:3.9-slim
+        command: ["python3.9",  "/app/main.py"]
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        env:
+        - name: START
+          value: "1"
+        - name: END
+          value: "10"
+        volumeMounts:
+          - name:  myconfigmap
+            mountPath: /app/main.py
+            subPath: main.py
+      volumes:
+        - name: myconfigmap
+          configMap:
+            name: myconfigmap
+      restartPolicy: Never
+  backoffLimit: 3
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: myconfigmap
+  labels:
+    app: myjob
+data:
+  main.py: |
+    import os 
+    import logging
+    logger = logging.getLogger()
+    try:
+        start = int(os.environ["START"]) 
+        end = int(os.environ["END"])
+    except Exception as e: 
+        logger.error(e)
+    if start >= end:
+        logger.error("start must be bigger than end number start="+str(start)+" end="+str(end))   
+    else:    
+        for x in range(start,end):
+            print (str(x))
+
+

@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pre-proccess
+spec:
+  template:
+    spec:
+      containers:
+      - image: python:3.9-slim
+        name: pre-proccess
+        command: ["python3.9"] 
+        args: [-c ,'f = open("/data/data.txt", "a") ;f.write("hello kubernetes");f.close()']
+        volumeMounts:
+          - mountPath: "/data"
+            name: test-pv-storage
+      volumes:
+        - name: test-pv-storage
+          persistentVolumeClaim:
+            claimName: test-pv-claim
+
+#        resources: {}
+      restartPolicy: Never

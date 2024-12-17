@@ -1,0 +1,118 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: myjob
+spec:
+  startingDeadlineSeconds: 60
+#  schedule: "0 */6 * * *"
+  schedule: "*/2 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: logdownloader
+            image: python:3.9-slim
+            command:
+            - /bin/sh
+            - -c
+            - pip install boto3; python3.9 /app/main.py
+            env:
+            - name: aws_access_key_id
+              valueFrom:
+                secretKeyRef:
+                  name: aws-secrets
+                  key: aws_access_key_id
+            - name: aws_secret_access_key
+              valueFrom:
+                secretKeyRef:
+                  name: aws-secrets
+                  key: aws_secret_access_key
+ #           - name: region-name
+ #             valueFrom:
+ #               secretKeyRef:
+ #                 name: region_name
+ #                 key: aws_access_key_id
+            volumeMounts:
+            - name: config-volume
+              mountPath: /app/main.py
+              subPath: main.py
+
+          volumes:
+            - name: config-volume
+              configMap:
+                name: mypythonapp  
+#          backoffLimit: 3
+
+                
+
+          restartPolicy: OnFailure
+
+  
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-secrets
+type: Opaque
+data:
+  aws_access_key_id: c29tZWRhdGEK
+  aws_secret_access_key: c29tZWRhdGEK
+  region_name: c29tZWRhdGEK
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mypythonapp
+  labels:
+    app: myjob
+data:
+  main.py: |
+    from boto3.session import Session
+    import boto3
+    import logging
+    import os
+    import base64
+    from logging import handlers
+    import sys
+
+    log = logging.getLogger('')
+    log.setLevel(logging.INFO)
+    format = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setFormatter(format)
+    log.addHandler(ch)
+
+    fh = handlers.RotatingFileHandler("log.log", maxBytes=(1048576*5), backupCount=7)
+    fh.setFormatter(format)
+    log.addHandler(fh)
+
+    # Let's use Amazon S3
+    s3 = boto3.resource("s3")
+
+    # Print out bucket names to check you have accessibility
+    # for bucket in s3.buckets.all():
+    #     print(bucket.name)
+
+    #session = Session()
+    #OR
+    aws_access_key_id_val = os.environ["aws_access_key_id"]
+    aws_secret_access_key_val = os.environ["aws_secret_access_key"]
+    #region_name_val = base64.b64decode(os.environ["region_name"]).decode('utf-8')
+    region_name_val = 'eu-west'
+    # for debugging 
+    print(f"aws_access_key_id_val={aws_access_key_id_val} aws_secret_access_key_val={aws_secret_access_key_val} region_name_val={region_name_val} ")
+    log.info("trying to connect to s3")
+    try:
+        session = Session(aws_access_key_id=aws_access_key_id_val,
+                          aws_secret_access_key=aws_secret_access_key_val,
+                          region_name=region_name_val)    
+        log.info("session object created...")
+        session.resource('s3').Bucket('bucket-logs').download_file(Key="logs/20221122_0_5ee03da676ac566336e2279decfc77b3.gz", Filename="/tmp/Local_file_name.gz")
+        log.info("log file was downloaded")
+    except Exception as e:
+        log.error(e)    
+
